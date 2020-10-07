@@ -15,16 +15,10 @@ import {
   TrieTestGenerator,
   ZERO_ADDRESS,
 } from '../../../helpers'
-import {
-  MockContract,
-  smockit,
-  ModifiableContract,
-  smoddit,
-  ModifiableContractFactory,
-} from '@eth-optimism/smock'
+import { MockContract, smockit } from '@eth-optimism/smock'
 import { keccak256 } from 'ethers/lib/utils'
 
-describe('OVM_StateTransitioner', () => {
+describe.skip('OVM_StateTransitioner', () => {
   let AddressManager: Contract
   before(async () => {
     AddressManager = await makeAddressManager()
@@ -63,12 +57,14 @@ describe('OVM_StateTransitioner', () => {
     Mock__OVM_StateManager.smocked.putAccount.will.return()
   })
 
-  let Factory__OVM_StateTransitioner: ModifiableContractFactory
+  let Factory__OVM_StateTransitioner: ContractFactory
   before(async () => {
-    Factory__OVM_StateTransitioner = await smoddit('OVM_StateTransitioner')
+    Factory__OVM_StateTransitioner = await ethers.getContractFactory(
+      'OVM_StateTransitioner'
+    )
   })
 
-  let OVM_StateTransitioner: ModifiableContract
+  let OVM_StateTransitioner: Contract
   beforeEach(async () => {
     OVM_StateTransitioner = await Factory__OVM_StateTransitioner.deploy(
       AddressManager.address,
@@ -176,8 +172,8 @@ describe('OVM_StateTransitioner', () => {
               BigNumber.from(account.balance),
               account.storageRoot,
               account.codeHash,
-              ethContractAddress,
-              false,
+              account.ethAddress,
+              account.isFresh,
             ],
           ])
         })
@@ -211,81 +207,52 @@ describe('OVM_StateTransitioner', () => {
 
     describe('when the corresponding account is proven', () => {
       beforeEach(() => {
-        Mock__OVM_StateManager.smocked.hasAccount.will.return.with(true)
+        Mock__OVM_StateManager.smocked.hasAccount.will.return.with(false)
       })
 
       describe('when provided an invalid slot inclusion proof', () => {
-        let key = keccak256('0x1234')
-        let val = keccak256('0x5678')
-        let proof = '0x'
-        beforeEach(async () => {
-          const generator = await TrieTestGenerator.fromNodes({
-            nodes: [
-              {
-                key,
-                val,
-              },
-            ],
-            secure: true,
-          })
-
-          const test = await generator.makeInclusionProofTest(0)
-
-          Mock__OVM_StateManager.smocked.getAccountStorageRoot.will.return.with(
-            test.root
-          )
-        })
-
-        it('should revert', async () => {
-          await expect(
-            OVM_StateTransitioner.proveStorageSlot(
-              ZERO_ADDRESS,
-              key,
-              val,
-              proof
-            )
-          ).to.be.reverted
-        })
-      })
-
-      describe('when provided a valid slot inclusion proof', () => {
-        let key = keccak256('0x1234')
-        let val = keccak256('0x5678')
+        let account: any
         let proof: string
         beforeEach(async () => {
-          const generator = await TrieTestGenerator.fromNodes({
-            nodes: [
+          account = {
+            nonce: 0,
+            balance: 0,
+            storageRoot: NULL_BYTES32,
+            codeHash: NULL_BYTES32,
+          }
+
+          const generator = await TrieTestGenerator.fromAccounts({
+            accounts: [
               {
-                key,
-                val,
+                ...account,
+                address: NON_ZERO_ADDRESS,
+                storage: [
+                  {
+                    key: keccak256('0x1234'),
+                    val: keccak256('0x5678'),
+                  },
+                ],
               },
             ],
             secure: true,
           })
 
-          const test = await generator.makeInclusionProofTest(0)
-          proof = test.proof
+          const test = await generator.makeAccountProofTest(NON_ZERO_ADDRESS)
 
-          Mock__OVM_StateManager.smocked.getAccountStorageRoot.will.return.with(
-            test.root
+          proof = test.accountTrieWitness
+
+          OVM_StateTransitioner = await Factory__OVM_StateTransitioner.deploy(
+            AddressManager.address,
+            0,
+            test.accountTrieRoot,
+            NULL_BYTES32
           )
         })
 
-        it('should insert the storage slot', async () => {
-          await expect(
-            OVM_StateTransitioner.proveStorageSlot(
-              ZERO_ADDRESS,
-              key,
-              val,
-              proof
-            )
-          ).to.not.be.reverted
-
-          expect(
-            Mock__OVM_StateManager.smocked.putContractStorage.calls[0]
-          ).to.deep.equal([ZERO_ADDRESS, key, val])
-        })
+        it('should revert', async () => {})
       })
+
+      describe('when provided a valid slot inclusion proof', () => {})
     })
   })
 
@@ -294,280 +261,46 @@ describe('OVM_StateTransitioner', () => {
   })
 
   describe('commitContractState', () => {
-    beforeEach(async () => {
-      OVM_StateTransitioner.smodify.set({
-        phase: 1,
-      })
+    describe('when the account was not changed', () => {
+      it('should revert', async () => {})
     })
 
-    let ovmContractAddress = NON_ZERO_ADDRESS
-    let account: any
-    beforeEach(() => {
-      Mock__OVM_StateManager.smocked.hasAccount.will.return.with(false)
-      account = {
-        nonce: 0,
-        balance: 0,
-        storageRoot: NULL_BYTES32,
-        codeHash: NULL_BYTES32,
-      }
-    })
-
-    describe('when the account was not changed or has already been committed', () => {
-      before(() => {
-        Mock__OVM_StateManager.smocked.commitAccount.will.return.with(false)
+    describe('when the account was changed', () => {
+      describe('when the account has not been committed', () => {
+        it('should commit the account and update the state', async () => {})
       })
 
-      it('should revert', async () => {
-        await expect(
-          OVM_StateTransitioner.commitContractState(
-            ovmContractAddress,
-            account,
-            '0x'
-          )
-        ).to.be.revertedWith(
-          'Account was not changed or has already been committed.'
-        )
-      })
-    })
-
-    describe('when the account was changed or has not already been committed', () => {
-      before(() => {
-        Mock__OVM_StateManager.smocked.commitAccount.will.return.with(true)
-      })
-
-      describe('when given an valid update proof', () => {
-        let proof: string
-        let postStateRoot: string
-        beforeEach(async () => {
-          const generator = await TrieTestGenerator.fromAccounts({
-            accounts: [
-              {
-                ...account,
-                nonce: 10,
-                address: ovmContractAddress,
-              },
-            ],
-            secure: true,
-          })
-
-          const test = await generator.makeAccountUpdateTest(
-            ovmContractAddress,
-            account
-          )
-
-          proof = test.accountTrieWitness
-          postStateRoot = test.newAccountTrieRoot
-
-          OVM_StateTransitioner.smodify.put({
-            postStateRoot: test.accountTrieRoot,
-          })
-        })
-
-        it('should update the post state root', async () => {
-          await expect(
-            OVM_StateTransitioner.commitContractState(
-              ovmContractAddress,
-              account,
-              proof
-            )
-          ).to.not.be.reverted
-
-          expect(await OVM_StateTransitioner.getPostStateRoot()).to.equal(
-            postStateRoot
-          )
-        })
+      describe('when the account was already committed', () => {
+        it('should revert', () => {})
       })
     })
   })
 
   describe('commitStorageSlot', () => {
-    beforeEach(() => {
-      OVM_StateTransitioner.smodify.set({
-        phase: 1,
-      })
+    describe('when the slot was not changed', () => {
+      it('should revert', async () => {})
     })
 
-    let ovmContractAddress = NON_ZERO_ADDRESS
-    let account: any
-    let key = keccak256('0x1234')
-    let val = keccak256('0x5678')
-    let newVal = keccak256('0x4321')
-    beforeEach(() => {
-      account = {
-        nonce: 0,
-        balance: 0,
-        storageRoot: NULL_BYTES32,
-        codeHash: NULL_BYTES32,
-      }
-
-      Mock__OVM_StateManager.smocked.getAccount.will.return.with({
-        ...account,
-        ethAddress: ZERO_ADDRESS,
-        isFresh: false,
-      })
-    })
-
-    describe('when the slot was not changed or was already committed', () => {
-      beforeEach(() => {
-        Mock__OVM_StateManager.smocked.commitContractStorage.will.return.with(
-          false
-        )
+    describe('when the slot was changed', () => {
+      describe('when the slot has not been committed', () => {
+        it('should commit the slot and update the state', async () => {})
       })
 
-      it('should revert', async () => {
-        await expect(
-          OVM_StateTransitioner.commitStorageSlot(
-            ovmContractAddress,
-            key,
-            val,
-            '0x',
-            '0x'
-          )
-        ).to.be.revertedWith(
-          'Storage slot was not changed or has already been committed.'
-        )
-      })
-    })
-
-    describe('when the slot was changed or not already committed', () => {
-      beforeEach(() => {
-        Mock__OVM_StateManager.smocked.commitContractStorage.will.return.with(
-          true
-        )
-      })
-
-      describe('with a valid proof', () => {
-        let accountTrieProof: string
-        let storageTrieProof: string
-        let postStateRoot: string
-        beforeEach(async () => {
-          const storageGenerator = await TrieTestGenerator.fromNodes({
-            nodes: [
-              {
-                key,
-                val,
-              },
-            ],
-            secure: true,
-          })
-
-          const storageTest = await storageGenerator.makeNodeUpdateTest(
-            key,
-            newVal
-          )
-
-          const generator = await TrieTestGenerator.fromAccounts({
-            accounts: [
-              {
-                ...account,
-                storageRoot: storageTest.root,
-                address: ovmContractAddress,
-              },
-            ],
-            secure: true,
-          })
-
-          const test = await generator.makeAccountUpdateTest(
-            ovmContractAddress,
-            {
-              ...account,
-              storageRoot: storageTest.newRoot,
-            }
-          )
-
-          Mock__OVM_StateManager.smocked.getAccount.will.return.with({
-            ...account,
-            storageRoot: storageTest.root,
-            ethAddress: ZERO_ADDRESS,
-            isFresh: false,
-          })
-
-          accountTrieProof = test.accountTrieWitness
-          storageTrieProof = storageTest.proof
-
-          postStateRoot = test.newAccountTrieRoot
-
-          OVM_StateTransitioner.smodify.put({
-            postStateRoot: test.accountTrieRoot,
-          })
-        })
-
-        it('should commit the slot and update the state', async () => {
-          await expect(
-            OVM_StateTransitioner.commitStorageSlot(
-              ovmContractAddress,
-              key,
-              newVal,
-              accountTrieProof,
-              storageTrieProof
-            )
-          ).to.not.be.reverted
-        })
+      describe('when the slot was already committed', () => {
+        it('should revert', () => {})
       })
     })
   })
 
   describe('completeTransition', () => {
-    beforeEach(() => {
-      OVM_StateTransitioner.smodify.set({
-        phase: 1,
-      })
-    })
-
     describe('when there are uncommitted accounts', () => {
-      beforeEach(() => {
-        Mock__OVM_StateManager.smocked.getTotalUncommittedAccounts.will.return.with(
-          1
-        )
-        Mock__OVM_StateManager.smocked.getTotalUncommittedContractStorage.will.return.with(
-          0
-        )
-      })
-
-      it('should revert', async () => {
-        await expect(
-          OVM_StateTransitioner.completeTransition()
-        ).to.be.revertedWith(
-          'All accounts must be committed before completing a transition.'
-        )
-      })
+      it('should revert', async () => {})
     })
 
     describe('when there are uncommitted storage slots', () => {
-      beforeEach(() => {
-        Mock__OVM_StateManager.smocked.getTotalUncommittedAccounts.will.return.with(
-          0
-        )
-        Mock__OVM_StateManager.smocked.getTotalUncommittedContractStorage.will.return.with(
-          1
-        )
-      })
-
-      it('should revert', async () => {
-        await expect(
-          OVM_StateTransitioner.completeTransition()
-        ).to.be.revertedWith(
-          'All storage must be committed before completing a transition.'
-        )
-      })
+      it('should revert', async () => {})
     })
 
-    describe('when all state changes are committed', () => {
-      beforeEach(() => {
-        Mock__OVM_StateManager.smocked.getTotalUncommittedAccounts.will.return.with(
-          0
-        )
-        Mock__OVM_StateManager.smocked.getTotalUncommittedContractStorage.will.return.with(
-          0
-        )
-      })
-
-      it('should complete the transition', async () => {
-        await expect(OVM_StateTransitioner.completeTransition()).to.not.be
-          .reverted
-
-        expect(await OVM_StateTransitioner.isComplete()).to.equal(true)
-      })
-    })
+    describe('when all state changes are committed', () => {})
   })
 })

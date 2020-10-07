@@ -11,9 +11,9 @@ import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_ECDSAUtils } from "../../libraries/utils/Lib_ECDSAUtils.sol";
 
 /**
- * @title OVM_ECDSAContractAccount
+ * @title mockOVM_ECDSAContractAccount
  */
-contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
+contract mockOVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
 
     /********************
      * Public Functions *
@@ -45,20 +45,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
     {
         iOVM_ExecutionManager ovmExecutionManager = iOVM_ExecutionManager(msg.sender);
 
-        // Address of this contract within the ovm (ovmADDRESS) should be the same as the
-        // recovered address of the user who signed this message. This is how we manage to shim
-        // account abstraction even though the user isn't a contract.
-        require(
-            Lib_ECDSAUtils.recover(
-                _transaction,
-                _signatureType == Lib_OVMCodec.EOASignatureType.ETH_SIGNED_MESSAGE,
-                _v,
-                _r,
-                _s,
-                ovmExecutionManager.ovmCHAINID()
-            ) == ovmExecutionManager.ovmADDRESS(),
-            "Signature provided for EOA transaction execution is invalid."
-        );
+        // Skip signature validation within the mock.
 
         Lib_OVMCodec.EOATransaction memory decodedTx = Lib_OVMCodec.decodeEOATransaction(_transaction);
 

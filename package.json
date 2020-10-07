@@ -1,7 +1,13 @@
 {
-  "name": "optimism",
+  "name": "@eth-optimism/contracts",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "build/src/index.js",
+  "files": [
+    "build/**/*.js",
+    "build/contracts/*",
+    "build/dumps/*json",
+    "build/artifacts/*json"
+  ],
   "license": "MIT",
   "scripts": {
     "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy",
@@ -36,7 +42,6 @@
     "ganache-core": "^2.12.1",
     "lodash": "^4.17.20",
     "merkle-patricia-tree": "git+https://github.com/kfichter/merkle-patricia-tree",
-    "mkdirp": "^1.0.4",
     "mocha": "^8.1.1",
     "prettier": "^2.1.2",
     "random-bytes-seed": "^1.0.3",

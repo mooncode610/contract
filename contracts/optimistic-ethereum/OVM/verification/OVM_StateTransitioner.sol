@@ -262,26 +262,15 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
             "Contract must be verified before proving a storage slot."
         );
 
-        (
-            bool exists,
-            bytes memory value
-        ) = Lib_SecureMerkleTrie.get(
-            abi.encodePacked(_key),
-            _storageTrieWitness,
-            ovmStateManager.getAccountStorageRoot(_ovmContractAddress)
+        require(
+            Lib_SecureMerkleTrie.verifyInclusionProof(
+                abi.encodePacked(_key),
+                abi.encodePacked(_value),
+                _storageTrieWitness,
+                ovmStateManager.getAccountStorageRoot(_ovmContractAddress)
+            ),
+            "Storage slot is invalid or invalid inclusion proof provided."
         );
-
-        if (exists == true) {
-            require(
-                keccak256(value) == keccak256(abi.encodePacked(_value)),
-                "Provided storage slot value is invalid."
-            );
-        } else {
-            require(
-                _value == bytes32(0),
-                "Provided storage slot value is invalid."
-            );
-        }
 
         ovmStateManager.putContractStorage(
             _ovmContractAddress,
