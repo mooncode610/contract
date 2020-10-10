@@ -1,16 +1,10 @@
 {
-  "name": "@eth-optimism/contracts",
+  "name": "optimism",
   "version": "1.0.0",
-  "main": "build/src/index.js",
-  "files": [
-    "build/**/*.js",
-    "build/contracts/*",
-    "build/dumps/*json",
-    "build/artifacts/*json"
-  ],
+  "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && yarn run build:dump",
+    "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy",
     "build:typescript": "tsc -p .",
     "build:contracts": "buidler compile",
     "build:dump": "ts-node \"bin/take-dump.ts\"",

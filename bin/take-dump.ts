@@ -11,5 +11,5 @@ import { makeStateDump } from '../src'
   mkdirp.sync(outdir)
 
   const dump = await makeStateDump()
-  fs.writeFileSync(outfile, JSON.stringify(dump, null, 4))
+  fs.writeFileSync(outfile, JSON.stringify(dump))
 })()

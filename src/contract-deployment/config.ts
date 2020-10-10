@@ -12,9 +12,6 @@ export interface RollupDeployConfig {
     maxGasPerQueuePerEpoch: number
     secondsPerEpoch: number
   }
-  ovmGlobalContext: {
-    ovmCHAINID: number
-  }
   transactionChainConfig: {
     sequencer: string | Signer
     forceInclusionPeriodSeconds: number
@@ -23,7 +20,6 @@ export interface RollupDeployConfig {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
   }
-  dependencies?: string[]
 }
 
 export interface ContractDeployParameters {
@@ -68,29 +64,9 @@ export const makeContractDeployConfig = async (
       factory: getContractFactory('OVM_StateCommitmentChain'),
       params: [AddressManager.address],
     },
-    OVM_DeployerWhitelist: {
-      factory: getContractFactory('OVM_DeployerWhitelist'),
-      params: [],
-    },
-    OVM_L1MessageSender: {
-      factory: getContractFactory('OVM_L1MessageSender'),
-      params: [],
-    },
-    OVM_L2ToL1MessagePasser: {
-      factory: getContractFactory('OVM_L2ToL1MessagePasser'),
-      params: [],
-    },
-    OVM_SafetyChecker: {
-      factory: getContractFactory('OVM_SafetyChecker'),
-      params: [],
-    },
     OVM_ExecutionManager: {
       factory: getContractFactory('OVM_ExecutionManager'),
-      params: [
-        AddressManager.address,
-        config.ovmGasMeteringConfig,
-        config.ovmGlobalContext
-      ],
+      params: [AddressManager.address],
     },
     OVM_StateManager: {
       factory: getContractFactory('OVM_StateManager'),
@@ -115,11 +91,5 @@ export const makeContractDeployConfig = async (
     OVM_StateTransitionerFactory: {
       factory: getContractFactory('OVM_StateTransitionerFactory'),
     },
-    OVM_ECDSAContractAccount: {
-      factory: getContractFactory('OVM_ECDSAContractAccount')
-    },
-    mockOVM_ECDSAContractAccount: {
-      factory: getContractFactory('mockOVM_ECDSAContractAccount')
-    }
   }
 }
