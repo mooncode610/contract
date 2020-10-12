@@ -6,7 +6,6 @@ export const DUMMY_BATCH_HEADERS = [
     batchRoot: NULL_BYTES32,
     batchSize: 0,
     prevTotalElements: 0,
-    timestamp: 0,
     extraData: NULL_BYTES32,
   },
 ]

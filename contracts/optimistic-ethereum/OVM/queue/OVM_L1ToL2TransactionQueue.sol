@@ -17,6 +17,13 @@ import { OVM_BaseQueue } from "./OVM_BaseQueue.sol";
  */
 contract OVM_L1ToL2TransactionQueue is iOVM_L1ToL2TransactionQueue, OVM_BaseQueue, Lib_AddressResolver {
 
+    /*************************************************
+     * Contract Variables: Transaction Restrinctions *
+     *************************************************/
+
+    uint constant MAX_ROLLUP_TX_SIZE = 10000;
+    uint constant L2_GAS_DISCOUNT_DIVISOR = 10;
+
     /*******************************************
      * Contract Variables: Contract References *
      *******************************************/
@@ -58,6 +65,18 @@ contract OVM_L1ToL2TransactionQueue is iOVM_L1ToL2TransactionQueue, OVM_BaseQueu
         override
         public
     {
+        require(_gasLimit >= 20000, "Gas limit too low.");
+        require(
+            _data.length <= MAX_ROLLUP_TX_SIZE,
+            "Transaction exceeds maximum rollup data size."
+        );
+        uint gasToConsume = _gasLimit/L2_GAS_DISCOUNT_DIVISOR;
+        uint startingGas = gasleft();
+        uint i;
+        while(startingGas - gasleft() > gasToConsume) {
+            i++; // TODO: Replace this dumb work with minting gas token.
+        }
+
         Lib_OVMCodec.QueueElement memory element = Lib_OVMCodec.QueueElement({
             timestamp: block.timestamp,
             batchRoot: keccak256(abi.encodePacked(
@@ -84,5 +103,22 @@ contract OVM_L1ToL2TransactionQueue is iOVM_L1ToL2TransactionQueue, OVM_BaseQueu
         );
 
         _dequeue();
+    }
+
+
+    /***************************************
+     * External Functions: Gas Consumption *
+     ***************************************/
+
+    /**
+     * Consumes all gas provided.
+     * Note: this is an external function, but is only called by self.
+     */
+    function consumeAllGasProvided()
+        external
+    {
+        assembly {
+            invalid()
+        }
     }
 }
