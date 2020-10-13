@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.7.0;
 
-/* Contract Imports */
-import { Ownable } from "./Lib_Ownable.sol";
-
 /**
  * @title Lib_AddressManager
  */
-contract Lib_AddressManager is Ownable {
+contract Lib_AddressManager {
 
     /*******************************************
      * Contract Variables: Internal Accounting *
@@ -25,7 +22,6 @@ contract Lib_AddressManager is Ownable {
         address _address
     )
         public
-        onlyOwner
     {
         addresses[_getNameHash(_name)] = _address;
     }

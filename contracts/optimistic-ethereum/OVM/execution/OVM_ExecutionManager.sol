@@ -27,8 +27,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * External Contract References *
      ********************************/
 
-    iOVM_SafetyChecker internal ovmSafetyChecker;
-    iOVM_StateManager internal ovmStateManager;
+    iOVM_SafetyChecker public ovmSafetyChecker;
+    iOVM_StateManager public ovmStateManager;
 
 
     /*******************************
@@ -63,15 +63,11 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * @param _libAddressManager Address of the Address Manager.
      */
     constructor(
-        address _libAddressManager,
-        GasMeterConfig memory _gasMeterConfig,
-        GlobalContext memory _globalContext
+        address _libAddressManager
     )
         Lib_AddressResolver(_libAddressManager)
     {
         ovmSafetyChecker = iOVM_SafetyChecker(resolve("OVM_SafetyChecker"));
-        gasMeterConfig = _gasMeterConfig;
-        globalContext = _globalContext;
     }
 
     
@@ -124,17 +120,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         override
         public
     {
-        // Store our OVM_StateManager instance (significantly easier than attempting to pass the
-        // address around in calldata).
+        // Store our OVM_StateManager instance (significantly easier than attempting to pass the address
+        // around in calldata).
         ovmStateManager = iOVM_StateManager(_ovmStateManager);
-
-        // Make sure this function can't be called by anyone except the owner of the
-        // OVM_StateManager (expected to be an OVM_StateTransitioner). We can revert here because
-        // this would make the `run` itself invalid.
-        require(
-            msg.sender == ovmStateManager.owner(),
-            "Only the owner of the ovmStateManager can call this function"
-        );
 
         // Check whether we need to start a new epoch, do so if necessary.
         _checkNeedsNewEpoch(_transaction.timestamp);
@@ -162,9 +150,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
 
         // Wipe the execution context.
         _resetContext();
-
-        // Reset the ovmStateManager.
-        ovmStateManager = iOVM_StateManager(address(0));
     }
 
 
@@ -509,6 +494,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         MessageContext memory nextMessageContext = messageContext;
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
+        nextMessageContext.isCreation = false;
         bool isStaticEntrypoint = false;
 
         return _callContract(
@@ -546,6 +532,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
         nextMessageContext.isStatic = true;
+        nextMessageContext.isCreation = false;
         bool isStaticEntrypoint = true;
 
         return _callContract(
@@ -580,6 +567,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     {
         // DELEGATECALL does not change anything about the message context.
         MessageContext memory nextMessageContext = messageContext;
+        nextMessageContext.isCreation = false;
         bool isStaticEntrypoint = false;
 
         return _callContract(
@@ -741,7 +729,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
     )
         override
         public
-    {
+    {   
         // Since this function is public, anyone can attempt to directly call it. We need to make
         // sure that the OVM_ExecutionManager itself is the only party that can actually try to
         // call this function.
@@ -765,11 +753,18 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // We always need to initialize the contract with the default account values.
         _initPendingAccount(_address);
 
+        // We're going into a contract creation, so we need to set this flag to get the correct
+        // revert behavior.
+        messageContext.isCreation = true;
+
         // Actually deploy the contract and retrieve its address. This step is hiding a lot of
         // complexity because we need to ensure that contract creation *never* reverts by itself.
         // We cover this partially by storing a revert flag and returning (instead of reverting)
         // when we know that we're inside a contract's creation code.
         address ethAddress = Lib_EthUtils.createContract(_bytecode);
+
+        // Now reset this flag so we go back to normal revert behavior.
+        messageContext.isCreation = false;
 
         // Contract creation returns the zero address when it fails, which should only be possible
         // if the user intentionally runs out of gas. However, we might still have a bit of gas
@@ -823,7 +818,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         )
     {
         // We always update the nonce of the creating account, even if the creation fails.
-        _setAccountNonce(ovmADDRESS(), _getAccountNonce(ovmADDRESS()) + 1);
+        _setAccountNonce(ovmADDRESS(), 1);
 
         // We're stepping into a CREATE or CREATE2, so we need to update ADDRESS to point
         // to the contract's associated address and CALLER to point to the previous ADDRESS.
@@ -876,10 +871,16 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _returndata
         )
     {
+        // EVM precompiles have the same address on L1 and L2 --> no trie lookup neededgit s.
+        address codeContractAddress = 
+            uint(_contract) < 100
+            ? _contract
+            : _getAccountEthAddress(_contract);
+
         return _handleExternalInteraction(
             _nextMessageContext,
             _gasLimit,
-            _getAccountEthAddress(_contract),
+            codeContractAddress,
             _calldata,
             _isStaticEntrypoint
         );
@@ -1393,12 +1394,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         // *single* byte, something the OVM_ExecutionManager will not return in any other case.
         // We're thereby allowed to communicate failure without allowing contracts to trick us into
         // thinking there was a failure.
-        bool isCreation;
-        assembly {
-            isCreation := eq(extcodesize(caller()), 0)
-        }
-
-        if (isCreation) {
+        if (messageContext.isCreation) {
             messageRecord.revertFlag = _flag;
 
             assembly {
@@ -1554,7 +1550,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
                 _getGasMetadata(cumulativeGasKey)
                 - _getGasMetadata(prevEpochGasKey)
                 + _gasLimit
-            ) < gasMeterConfig.maxGasPerQueuePerEpoch
+            ) > gasMeterConfig.maxGasPerQueuePerEpoch
         );
     }
 
@@ -1654,6 +1650,11 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         if (_prevMessageContext.isStatic != _nextMessageContext.isStatic) {
             messageContext.isStatic = _nextMessageContext.isStatic;
         }
+
+        // Avoid unnecessary the SSTORE.
+        if (_prevMessageContext.isCreation != _nextMessageContext.isCreation) {
+            messageContext.isCreation = _nextMessageContext.isCreation;
+        }
     }
 
     /**
@@ -1671,8 +1672,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         transactionContext.ovmL1QUEUEORIGIN = _transaction.l1QueueOrigin;
         transactionContext.ovmL1TXORIGIN = _transaction.l1Txorigin;
         transactionContext.ovmGASLIMIT = gasMeterConfig.maxGasPerQueuePerEpoch;
-
-        messageRecord.nuisanceGasLeft = _getNuisanceGasLimit(_transaction.gasLimit);
     }
 
     /**

@@ -67,6 +67,7 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             decodedTx.nonce == Lib_SafeExecutionManagerWrapper.safeGETNONCE(ovmExecutionManager) + 1,
             "Transaction nonce does not match the expected nonce."
         );
+        Lib_SafeExecutionManagerWrapper.safeSETNONCE(ovmExecutionManager, decodedTx.nonce);
 
         // Contract creations are signalled by sending a transaction to the zero address.
         if (decodedTx.target == address(0)) {
@@ -80,11 +81,6 @@ contract OVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // initialization. Always return `true` for our success value here.
             return (true, abi.encode(created));
         } else {
-            // We only want to bump the nonce for `ovmCALL` because `ovmCREATE` automatically bumps
-            // the nonce of the calling account. Normally an EOA would bump the nonce for both
-            // cases, but since this is a contract we'd end up bumping the nonce twice.
-            Lib_SafeExecutionManagerWrapper.safeSETNONCE(ovmExecutionManager, decodedTx.nonce);
-
             return Lib_SafeExecutionManagerWrapper.safeCALL(
                 ovmExecutionManager,
                 decodedTx.gasLimit,

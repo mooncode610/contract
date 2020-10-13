@@ -25,9 +25,7 @@ interface iOVM_StateManager {
     /***************************
      * Public Functions: Setup *
      ***************************/
-
-    function owner() external view returns (address _owner); 
-    function ovmExecutionManager() external view returns (address _ovmExecutionManager); 
+    
     function setExecutionManager(address _ovmExecutionManager) external;
 
 

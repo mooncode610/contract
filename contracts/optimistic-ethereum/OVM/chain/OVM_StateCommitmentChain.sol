@@ -18,13 +18,6 @@ import { OVM_BaseChain } from "./OVM_BaseChain.sol";
  * @title OVM_StateCommitmentChain
  */
 contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain, Lib_AddressResolver {
-
-    /*************
-     * Constants *
-     *************/
-
-    uint256 constant public FRAUD_PROOF_WINDOW = 7 days;
-
     
     /*******************************************
      * Contract Variables: Contract References *
@@ -80,7 +73,10 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain, L
             elements[i] = abi.encodePacked(_batch[i]);
         }
 
-        _appendBatch(elements);
+        _appendBatch(
+            elements,
+            abi.encodePacked(block.timestamp)
+        );
     }
 
     /**
@@ -98,34 +94,6 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain, L
             "State batches can only be deleted by the OVM_FraudVerifier."
         );
 
-        require(
-            insideFraudProofWindow(_batchHeader),
-            "State batches can only be deleted within the fraud proof window."
-        );
-
         _deleteBatch(_batchHeader);
-    }
-
-
-    /**********************************
-     * Public Functions: Batch Status *
-     **********************************/
-
-    function insideFraudProofWindow(
-        Lib_OVMCodec.ChainBatchHeader memory _batchHeader
-    )
-        override
-        public
-        view
-        returns (
-            bool _inside
-        )
-    {
-        require(
-            _batchHeader.timestamp != 0,
-            "Batch header timestamp cannot be zero"
-        );
-
-        return _batchHeader.timestamp + FRAUD_PROOF_WINDOW > block.timestamp;
     }
 }
