@@ -10,7 +10,7 @@ import { Lib_BytesUtils } from "../../libraries/utils/Lib_BytesUtils.sol";
 
 /* Interface Imports */
 import { iOVM_L1CrossDomainMessenger } from "../../iOVM/bridge/iOVM_L1CrossDomainMessenger.sol";
-import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
+import { iOVM_L1ToL2TransactionQueue } from "../../iOVM/queue/iOVM_L1ToL2TransactionQueue.sol";
 import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitmentChain.sol";
 
 /* Contract Imports */
@@ -25,7 +25,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
      * Contract Variables: Contract References *
      *******************************************/
     
-    iOVM_CanonicalTransactionChain internal ovmCanonicalTransactionChain;
+    iOVM_L1ToL2TransactionQueue internal ovmL1ToL2TransactionQueue;
     iOVM_StateCommitmentChain internal ovmStateCommitmentChain;
 
 
@@ -41,7 +41,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
     )
         Lib_AddressResolver(_libAddressManager)
     {
-        ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
+        ovmL1ToL2TransactionQueue = iOVM_L1ToL2TransactionQueue(resolve("OVM_L1ToL2TransactionQueue"));
         ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
     }
 
@@ -163,15 +163,13 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
             bool
         )
     {
-        // TODO: We *must* verify that the batch timestamp is sufficiently old.
-        // However, this requires that we first add timestamps to state batches
-        // and account for that change in various tests. Change of that size is
-        // out of scope for this ticket, so "TODO" for now.
-
-        return ovmStateCommitmentChain.verifyElement(
-            abi.encodePacked(_proof.stateRoot),
-            _proof.stateRootBatchHeader,
-            _proof.stateRootProof
+        return (
+            ovmStateCommitmentChain.insideFraudProofWindow(_proof.stateRootBatchHeader) == false
+            && ovmStateCommitmentChain.verifyElement(
+                abi.encodePacked(_proof.stateRoot),
+                _proof.stateRootBatchHeader,
+                _proof.stateRootProof
+            )
         );
     }
 
@@ -235,8 +233,8 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
         override
         internal
     {
-        ovmCanonicalTransactionChain.enqueue(
-            targetMessengerAddress,
+        ovmL1ToL2TransactionQueue.enqueue(
+            resolve("OVM_L2CrossDomainMessenger"),
             _gasLimit,
             _message
         );

@@ -62,6 +62,7 @@ library Lib_OVMCodec {
         bytes32 batchRoot;
         uint256 batchSize;
         uint256 prevTotalElements;
+        uint256 timestamp;
         bytes extraData;
     }
 
@@ -81,9 +82,9 @@ library Lib_OVMCodec {
     }
 
     struct QueueElement {
+        uint256 timestamp;
         bytes32 batchRoot;
-        uint40 timestamp;
-        uint32 blockNumber;
+        bool isL1ToL2Batch;
     }
 
     struct EOATransaction {
