@@ -144,19 +144,6 @@ describe('OVM_CanonicalTransactionChain', () => {
     )
   })
 
-  let Mock__OVM_L1ToL2TransactionQueue: MockContract
-  before(async () => {
-    Mock__OVM_L1ToL2TransactionQueue = smockit(
-      await ethers.getContractFactory('OVM_L1ToL2TransactionQueue')
-    )
-
-    await setProxyTarget(
-      AddressManager,
-      'OVM_L1ToL2TransactionQueue',
-      Mock__OVM_L1ToL2TransactionQueue
-    )
-  })
-
   let Factory__OVM_CanonicalTransactionChain: ContractFactory
   before(async () => {
     Factory__OVM_CanonicalTransactionChain = await ethers.getContractFactory(
@@ -423,7 +410,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                 ).appendQueueBatch(1)
               )
                 .to.emit(OVM_CanonicalTransactionChain, 'QueueBatchAppended')
-                .withArgs(0, 1)
+                .withArgs(0, 1, 1)
             })
           })
 
@@ -438,13 +425,13 @@ describe('OVM_CanonicalTransactionChain', () => {
             it('should be able to append a single element', async () => {
               await expect(OVM_CanonicalTransactionChain.appendQueueBatch(1))
                 .to.emit(OVM_CanonicalTransactionChain, 'QueueBatchAppended')
-                .withArgs(0, 1)
+                .withArgs(0, 1, 1)
             })
 
             it(`should be able to append ${size} elements`, async () => {
               await expect(OVM_CanonicalTransactionChain.appendQueueBatch(size))
                 .to.emit(OVM_CanonicalTransactionChain, 'QueueBatchAppended')
-                .withArgs(0, size)
+                .withArgs(0, size, size)
             })
 
             it(`should revert if appending ${size} + 1 elements`, async () => {
@@ -721,7 +708,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                   OVM_CanonicalTransactionChain,
                   'SequencerBatchAppended'
                 )
-                .withArgs(0, 0)
+                .withArgs(0, 0, size)
             })
           })
         })
@@ -772,7 +759,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                   OVM_CanonicalTransactionChain,
                   'SequencerBatchAppended'
                 )
-                .withArgs(0, size)
+                .withArgs(0, size, size * 2)
             })
           })
 
@@ -815,7 +802,7 @@ describe('OVM_CanonicalTransactionChain', () => {
                   OVM_CanonicalTransactionChain,
                   'SequencerBatchAppended'
                 )
-                .withArgs(0, spacing)
+                .withArgs(0, spacing, size + spacing)
             })
           })
         })
