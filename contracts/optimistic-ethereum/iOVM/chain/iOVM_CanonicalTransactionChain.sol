@@ -28,14 +28,12 @@ interface iOVM_CanonicalTransactionChain is iOVM_BaseChain {
 
     event QueueBatchAppended(
         uint256 _startingQueueIndex,
-        uint256 _numQueueElements,
-        uint256 _totalElements
+        uint256 _numQueueElements
     );
 
     event SequencerBatchAppended(
         uint256 _startingQueueIndex,
-        uint256 _numQueueElements,
-        uint256 _totalElements
+        uint256 _numQueueElements
     );
 
 
